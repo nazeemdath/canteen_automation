@@ -1,30 +1,24 @@
 from rest_framework import serializers
 from .models import Order, OrderItem
+from menu.models import Menu
 
 class OrderItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = OrderItem
-        fields = ['id', 'menu_item', 'quantity']
+        fields = ['food_item', 'quantity']
 
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True)
+    user = serializers.ReadOnlyField(source='user.username')  # Make the user field read-only
 
     class Meta:
         model = Order
-        fields = '__all__'
-        read_only_fields = ['id', 'total_price', 'status', 'created_at']
+        fields = ['user', 'status', 'ordered_at', 'items']
 
     def create(self, validated_data):
         items_data = validated_data.pop('items')
-        order = Order.objects.create(**validated_data)
-
-        total_price = 0
+        # Automatically set the user to the logged-in user
+        order = Order.objects.create(user=self.context['request'].user, **validated_data)
         for item_data in items_data:
-            menu_item = item_data['menu_item']
-            quantity = item_data['quantity']
-            total_price += menu_item.price * quantity
             OrderItem.objects.create(order=order, **item_data)
-
-        order.total_price = total_price
-        order.save()
         return order
